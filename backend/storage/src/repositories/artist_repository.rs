@@ -1,3 +1,4 @@
+use crate::models::artist::UserEditedArtist;
 use crate::{
     connection_pool::ConnectionPool,
     models::{
@@ -188,6 +189,40 @@ impl ConnectionPool {
         .map_err(Error::CouldNotSearchForArtists)?;
 
         Ok(found_artists)
+    }
+
+    pub async fn find_artist_by_id(&self, artist_id: i64) -> Result<Artist> {
+        sqlx::query_as!(
+            Artist,
+            r#"
+                SELECT *
+                FROM artists
+                WHERE id = $1;
+            "#,
+            artist_id
+        )
+        .fetch_one(self.borrow())
+        .await
+        .map_err(Error::CouldNotFindArtist)
+    }
+
+    pub async fn update_artist_data(&self, updated_artist: &UserEditedArtist) -> Result<Artist> {
+        sqlx::query_as!(
+            Artist,
+            r#"
+                UPDATE artists
+                SET name = $1, description = $2, pictures = $3
+                WHERE id = $4
+                RETURNING *
+            "#,
+            updated_artist.name,
+            updated_artist.description,
+            &updated_artist.pictures,
+            updated_artist.id
+        )
+        .fetch_one(self.borrow())
+        .await
+        .map_err(Error::CouldNotUpdateArtist)
     }
 
     pub async fn delete_artists_affiliation(&self, affiliation_ids: &Vec<i64>) -> Result<()> {
