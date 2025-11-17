@@ -4,7 +4,13 @@ pub mod mocks;
 use std::sync::Arc;
 
 use actix_web::{http::StatusCode, test};
-use arcadia_storage::connection_pool::ConnectionPool;
+use arcadia_storage::{
+    connection_pool::ConnectionPool,
+    models::{
+        common::PaginatedResults, title_group::TitleGroupHierarchyLite, torrent::TorrentSearch,
+        torrent::TorrentSearchOrderByColumn, torrent::TorrentSearchOrderByDirection,
+    },
+};
 use mocks::mock_redis::MockRedisPool;
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -148,17 +154,6 @@ async fn test_upload_torrent(pool: PgPool) {
     assert_eq!(torrent.created_by_id, 2);
 }
 
-#[derive(Debug, Deserialize)]
-struct TitleGroupLite {
-    id: i64,
-    name: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct TorrentSearchResults {
-    title_groups: Option<Vec<TitleGroupLite>>,
-}
-
 #[sqlx::test(
     fixtures(
         "with_test_user",
@@ -169,8 +164,6 @@ struct TorrentSearchResults {
     migrations = "../storage/migrations"
 )]
 async fn test_find_torrents_by_external_link(pool: PgPool) {
-    let link = "https://en.wikipedia.org/wiki/RollerCoaster_Tycoon";
-
     let pool = Arc::new(ConnectionPool::with_pg_pool(pool));
     let (service, user) = common::create_test_app_and_login(
         pool,
@@ -181,26 +174,34 @@ async fn test_find_torrents_by_external_link(pool: PgPool) {
     )
     .await;
 
-    let body = serde_json::json!({
-        "title_group": { "name": link, "include_empty_groups": true },
-        "torrent": {},
-        "page": 1,
-        "page_size": 50,
-        "sort_by": "torrent_created_at",
-        "order": "desc"
-    });
+    let query = TorrentSearch {
+        title_group_name: Some("https://en.wikipedia.org/wiki/RollerCoaster_Tycoon".to_string()),
+        title_group_include_empty_groups: true,
+        torrent_reported: None,
+        torrent_staff_checked: None,
+        torrent_created_by_id: None,
+        torrent_snatched_by_id: None,
+        artist_id: None,
+        collage_id: None,
+        page: 1,
+        page_size: 50,
+        order_by_column: TorrentSearchOrderByColumn::TorrentCreatedAt,
+        order_by_direction: TorrentSearchOrderByDirection::Desc,
+    };
 
-    let req = test::TestRequest::post()
-        .uri("/api/search/torrents/lite")
+    let query = serde_urlencoded::to_string(query).unwrap();
+    let uri = format!("/api/search/torrents/lite?{}", query);
+
+    let req = test::TestRequest::get()
+        .uri(&uri)
         .insert_header(("X-Forwarded-For", "10.10.4.88"))
         .insert_header(auth_header(&user.token))
-        .set_json(body)
         .to_request();
 
-    let results: TorrentSearchResults =
+    let results: PaginatedResults<TitleGroupHierarchyLite> =
         common::call_and_read_body_json_with_status(&service, req, StatusCode::OK).await;
 
-    let groups = results.title_groups.unwrap_or_default();
+    let groups = results.results;
     assert!(
         groups
             .iter()
@@ -229,26 +230,34 @@ async fn test_find_torrents_by_name(pool: PgPool) {
     )
     .await;
 
-    let body = serde_json::json!({
-        "title_group": { "name": "Love Me Do", "include_empty_groups": true },
-        "torrent": {},
-        "page": 1,
-        "page_size": 50,
-        "sort_by": "torrent_created_at",
-        "order": "desc"
-    });
+    let query = TorrentSearch {
+        title_group_name: Some("Love Me Do".to_string()),
+        title_group_include_empty_groups: true,
+        torrent_reported: None,
+        torrent_staff_checked: None,
+        torrent_created_by_id: None,
+        torrent_snatched_by_id: None,
+        artist_id: None,
+        collage_id: None,
+        page: 1,
+        page_size: 50,
+        order_by_column: TorrentSearchOrderByColumn::TorrentCreatedAt,
+        order_by_direction: TorrentSearchOrderByDirection::Desc,
+    };
 
-    let req = test::TestRequest::post()
-        .uri("/api/search/torrents/lite")
+    let query = serde_urlencoded::to_string(query).unwrap();
+    let uri = format!("/api/search/torrents/lite?{}", query);
+
+    let req = test::TestRequest::get()
+        .uri(&uri)
         .insert_header(("X-Forwarded-For", "10.10.4.88"))
         .insert_header(auth_header(&user.token))
-        .set_json(body)
         .to_request();
 
-    let results: TorrentSearchResults =
+    let results: PaginatedResults<TitleGroupHierarchyLite> =
         common::call_and_read_body_json_with_status(&service, req, StatusCode::OK).await;
 
-    let groups = results.title_groups.unwrap_or_default();
+    let groups = results.results;
     assert!(
         groups
             .iter()
@@ -277,27 +286,35 @@ async fn test_find_torrents_no_link_or_name_provided(pool: PgPool) {
     )
     .await;
 
-    let body = serde_json::json!({
-        "title_group": { "name": "", "include_empty_groups": true },
-        "torrent": {},
-        "page": 1,
-        "page_size": 50,
-        "sort_by": "torrent_created_at",
-        "order": "desc"
-    });
+    let query = TorrentSearch {
+        title_group_name: Some("".to_string()),
+        title_group_include_empty_groups: true,
+        torrent_reported: None,
+        torrent_staff_checked: None,
+        torrent_created_by_id: None,
+        torrent_snatched_by_id: None,
+        artist_id: None,
+        collage_id: None,
+        page: 1,
+        page_size: 50,
+        order_by_column: TorrentSearchOrderByColumn::TorrentCreatedAt,
+        order_by_direction: TorrentSearchOrderByDirection::Desc,
+    };
 
-    let req = test::TestRequest::post()
-        .uri("/api/search/torrents/lite")
+    let query = serde_urlencoded::to_string(query).unwrap();
+    let uri = format!("/api/search/torrents/lite?{}", query);
+
+    let req = test::TestRequest::get()
+        .uri(&uri)
         .insert_header(("X-Forwarded-For", "10.10.4.88"))
         .insert_header(auth_header(&user.token))
-        .set_json(body)
         .to_request();
 
-    let results: TorrentSearchResults =
+    let results: PaginatedResults<TitleGroupHierarchyLite> =
         common::call_and_read_body_json_with_status(&service, req, StatusCode::OK).await;
 
-    let groups = results.title_groups.unwrap_or_default();
-    let ids: Vec<i64> = groups.iter().map(|g| g.id).collect();
+    let groups = results.results;
+    let ids: Vec<i32> = groups.iter().map(|g| g.id).collect();
 
     assert!(
         ids.contains(&1) && ids.contains(&2),
