@@ -496,7 +496,7 @@ pub struct TorrentHierarchyLite {
     pub audio_codec: Option<AudioCodec>,
     pub audio_bitrate: Option<i32>,
     pub audio_bitrate_sampling: Option<AudioBitrateSampling>,
-    pub audio_channels: Option<String>,
+    pub audio_channels: Option<AudioChannels>,
     pub video_codec: Option<VideoCodec>,
     pub features: Vec<Features>,
     pub subtitle_languages: Vec<Language>,
