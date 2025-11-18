@@ -131,6 +131,13 @@ jobs:
           cache-workspaces: ./backend/storage
 
       - name: Setup env
+        run: |
+          set -a
+          . ../api/.env.ci
+          set +a
+          env | grep -v '^_' >> $GITHUB_ENV
+
+      - name: Setup env
         run: cp -f ../api/.env.ci .env
 
       - name: Install sqlx
